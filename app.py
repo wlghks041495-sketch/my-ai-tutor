@@ -9,7 +9,7 @@ from datetime import datetime
 import json
 
 # 🌟 1. AI 열쇠 설정 (본인의 API 키로 반드시 변경하세요!)
-GEMINI_API_KEY = "AIzaSyD3Dgr_nkl6X76Mds5rUhzkwwBowZZ57Ko"
+GEMINI_API_KEY = st.secrets["AIzaSyD3Dgr_nkl6X76Mds5rUhzkwwBowZZ57Ko"]
 genai.configure(api_key=GEMINI_API_KEY)
 
 # AI 두뇌 세팅 (항상 정리된 JSON 양식으로만 대답하도록 강제 훈련)
