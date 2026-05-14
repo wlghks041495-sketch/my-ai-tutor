@@ -147,6 +147,9 @@ with tab1:
 # ==========================================
 # [탭 2] 내 문장 보관함 (업데이트됨)
 # ==========================================
+# ==========================================
+# [탭 2] 내 문장 보관함 (삭제 기능 추가)
+# ==========================================
 with tab2:
     st.subheader("저장된 AI 분석 노트")
     conn = sqlite3.connect('my_sentences.db')
@@ -159,7 +162,9 @@ with tab2:
         st.info("저장된 문장이 없습니다.")
     else:
         for row in records:
-            _, date_added, ko, en, zh, zh_pron, zh_desc, ja, ja_pron, ja_desc, last_tested = row
+            # idx는 데이터베이스에 저장된 문장의 고유 번호입니다.
+            idx, date_added, ko, en, zh, zh_pron, zh_desc, ja, ja_pron, ja_desc, last_tested = row
+            
             with st.expander(f"📝 {ko}"):
                 st.write(f"**🇺🇸 EN:** {en}")
                 st.write(f"**🇨🇳 ZH:** {zh} ({zh_pron})")
@@ -167,6 +172,16 @@ with tab2:
                 st.write(f"**🇯🇵 JA:** {ja} ({ja_pron})")
                 st.caption(f"💡 {ja_desc}")
                 st.write(f"*(저장일: {date_added})*")
+                
+                # 🗑️ 삭제 버튼 추가 (고유 번호 idx를 이용해 해당 문장만 지웁니다)
+                if st.button("🗑️ 이 문장 삭제하기", key=f"del_{idx}"):
+                    conn = sqlite3.connect('my_sentences.db')
+                    c = conn.cursor()
+                    c.execute("DELETE FROM sentences_v2 WHERE id = ?", (idx,))
+                    conn.commit()
+                    conn.close()
+                    st.toast("🗑️ 문장이 성공적으로 삭제되었습니다!")
+                    st.rerun() # 삭제 후 화면을 즉시 새로고침하여 반영
 
 # ==========================================
 # [탭 3] 작문 테스트 (에빙하우스)
