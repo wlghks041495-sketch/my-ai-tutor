@@ -16,7 +16,7 @@ except Exception as e:
     st.error("API 키 설정에 문제가 있습니다. 스트림릿 Secrets를 확인해주세요.")
 
 # 최신 2.5 AI 두뇌 세팅
-model = genai.GenerativeModel('gemini-1.5-flash', 
+model = genai.GenerativeModel('gemini-2.0-flash', 
                               generation_config={"response_mime_type": "application/json"})
 
 st.set_page_config(page_title="나만의 AI 어학기", layout="wide")
