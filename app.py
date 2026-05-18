@@ -68,9 +68,8 @@ def smart_translate(text, target_lang):
     if DEEPL_KEY:
         try:
             return DeeplTranslator(api_key=DEEPL_KEY, source="ko", target=deepl_lang, use_free_api=True).translate(text)
-        except: 
-            pass # 딥엘 실패(한도 초과 등)시 조용히 구글로 넘어감
-
+        except Exception as e: 
+            return f"[DeepL 에러 원인: {e}]" # 구글로 안 넘어가고 이유를 화면에 출력!
     # [2순위] Google (무제한 번역, 최후의 보루)
     try:
         return GoogleTranslator(source='ko', target=google_lang).translate(text)
