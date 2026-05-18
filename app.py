@@ -59,23 +59,23 @@ def analyze_japanese(text):
     desc = "추출 단어(한자): " + ", ".join(list(set(unique_words)))
     return pron, desc
 
-# 🌟 6. [핵심] 딥엘 -> 구글 2단 번역 시스템 (수정 완료!)
+# 🌟 6. [핵심] 딥엘 -> 구글 2단 번역 시스템 (최종 완성!)
 def smart_translate(text, target_lang):
-    deepl_lang = 'en-US' if target_lang == 'en' else target_lang
     google_lang = 'zh-CN' if target_lang == 'zh' else target_lang
 
-    # [1순위] DeepL 시도 (무료 API 옵션 켜기!)
+    # [1순위] DeepL 시도 (최고급 번역)
     if DEEPL_KEY:
         try:
-            return DeeplTranslator(api_key=DEEPL_KEY, source="ko", target=deepl_lang, use_free_api=True).translate(text)
-        except Exception as e: 
-            return f"[DeepL 에러 원인: {e}]" # 구글로 안 넘어가고 이유를 화면에 출력!
+            # 💡 source="ko" 대신 "auto"로 변경하여 도구의 자체 검열 우회!
+            return DeeplTranslator(api_key=DEEPL_KEY, source="auto", target=target_lang, use_free_api=True).translate(text)
+        except: 
+            pass # 딥엘 실패(한도 초과 등)시 화면에 에러 안 띄우고 조용히 구글로 넘어감
+
     # [2순위] Google (무제한 번역, 최후의 보루)
     try:
         return GoogleTranslator(source='ko', target=google_lang).translate(text)
     except:
         return "[번역 실패] 잠시 후 다시 시도해주세요."
-
 # 세션 세팅
 if 'scenario_data' not in st.session_state:
     st.session_state.scenario_data = []
