@@ -61,7 +61,7 @@ def analyze_japanese(text):
 
 # 🌟 6. [핵심] 번역기 출처와 에러 원인을 반환하는 스마트 번역기
 def smart_translate(text, target_lang):
-    deepl_lang = 'en-US' if target_lang == 'en' else target_lang
+    # 구글용 중국어 코드만 따로 빼고, 딥엘은 target_lang('en', 'zh', 'ja') 그대로 씁니다!
     google_lang = 'zh-CN' if target_lang == 'zh' else target_lang
     
     error_msg = ""
@@ -69,16 +69,16 @@ def smart_translate(text, target_lang):
     # [1순위] DeepL 시도
     if DEEPL_KEY:
         try:
-            # 번역 성공 시 결과와 함께 'DeepL' 태그 반환
-            result = DeeplTranslator(api_key=DEEPL_KEY, source="auto", target=deepl_lang, use_free_api=True).translate(text)
+            # target_lang을 그대로 사용합니다.
+            result = DeeplTranslator(api_key=DEEPL_KEY, source="auto", target=target_lang, use_free_api=True).translate(text)
             return result, "DeepL", "" 
         except Exception as e: 
-            error_msg = str(e) # 딥엘 실패 원인을 저장해둠
+            error_msg = str(e)
 
     # [2순위] Google (DeepL이 실패했거나 키가 없을 때)
     try:
         result = GoogleTranslator(source='ko', target=google_lang).translate(text)
-        return result, "Google", error_msg # 구글 번역 결과와 함께 딥엘의 에러 원인도 같이 보냄
+        return result, "Google", error_msg 
     except:
         return "[번역 실패] 잠시 후 다시 시도해주세요.", "Error", ""
 
