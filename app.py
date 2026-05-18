@@ -83,18 +83,27 @@ with tab1:
             results = []
             with st.spinner("로컬 엔진으로 분석 중..."):
                 for s in sentences:
-                    # 번역 (deep-translator 사용 - 무료/무제한에 가까움)
-                    en = GoogleTranslator(source='ko', target='en').translate(s)
-                    zh = GoogleTranslator(source='ko', target='zh-CN').translate(s)
-                    ja = GoogleTranslator(source='ko', target='ja').translate(s)
-                    
-                    zh_pron, zh_desc = analyze_chinese(zh)
-                    ja_pron, ja_desc = analyze_japanese(ja)
-                    
-                    results.append({
-                        'ko': s, 'en': en, 'zh': zh, 'zh_pron': zh_pron, 'zh_desc': zh_desc,
-                        'ja': ja, 'ja_pron': ja_pron, 'ja_desc': ja_desc
-                    })
+                    # 안전망: 문장이 너무 짧거나 특수문자만 있으면 건너뛰기
+                    if len(s) < 2: 
+                        continue
+                        
+                    try:
+                        # 번역 (deep-translator 사용)
+                        en = GoogleTranslator(source='ko', target='en').translate(s)
+                        zh = GoogleTranslator(source='ko', target='zh-CN').translate(s)
+                        ja = GoogleTranslator(source='ko', target='ja').translate(s)
+                        
+                        zh_pron, zh_desc = analyze_chinese(zh)
+                        ja_pron, ja_desc = analyze_japanese(ja)
+                        
+                        results.append({
+                            'ko': s, 'en': en, 'zh': zh, 'zh_pron': zh_pron, 'zh_desc': zh_desc,
+                            'ja': ja, 'ja_pron': ja_pron, 'ja_desc': ja_desc
+                        })
+                    except Exception as e:
+                        # 번역 실패 시 앱이 튕기지 않고 경고창만 띄우고 넘어감
+                        st.warning(f"⚠️ '{s}' 문장 번역 중 오류가 발생해 건너뛰었습니다.")
+                        continue
             st.session_state.scenario_data = results
 
     if st.session_state.scenario_data:
