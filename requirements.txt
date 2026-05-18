@@ -1,4 +1,6 @@
 streamlit
-google-generativeai
+deep-translator
 gTTS
 jieba
+pypinyin
+pykakasi
