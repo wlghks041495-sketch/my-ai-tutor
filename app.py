@@ -1,19 +1,22 @@
 import streamlit as st
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator, DeepL
 from gtts import gTTS
 import os
 import base64
 import sqlite3
 import re
 from datetime import datetime
-import jieba # 중국어 단어 추출기
+import jieba
 from pypinyin import pinyin, Style
-import pykakasi # 일본어 단어 추출 및 발음기
+import pykakasi
 
 # 1. 화면 설정
 st.set_page_config(page_title="무제한 로컬 어학기", layout="wide")
 
-# 2. 데이터베이스 세팅
+# 2. 딥엘 키 가져오기
+DEEPL_KEY = st.secrets.get("DEEPL_API_KEY", "")
+
+# 3. 데이터베이스 세팅
 def init_db():
     conn = sqlite3.connect('my_sentences_local.db')
     c = conn.cursor()
@@ -26,7 +29,7 @@ def init_db():
 
 init_db()
 
-# 3. 음성 재생 함수
+# 4. 음성 재생 함수
 def speak(text, lang):
     try:
         tts = gTTS(text=text, lang=lang)
@@ -40,11 +43,10 @@ def speak(text, lang):
         os.remove(filename)
     except: pass
 
-# 4. 로컬 분석 함수 (AI 없이 단어 뽑기)
+# 5. 로컬 분석 함수
 def analyze_chinese(text):
-    # 단어 분리
     words = jieba.lcut(text)
-    unique_words = [w for w in words if len(w) > 1] # 1글자(조사 등) 제외하고 추출
+    unique_words = [w for w in words if len(w) > 1]
     desc = "추출 단어: " + ", ".join(unique_words)
     pron = " ".join([p[0] for p in pinyin(text, style=Style.TONE)])
     return pron, desc
@@ -53,19 +55,36 @@ def analyze_japanese(text):
     kks = pykakasi.kakasi()
     result = kks.convert(text)
     pron = " ".join([item['hira'] for item in result])
-    # 한자가 포함된 단어들 위주로 추출
     unique_words = [item['orig'] for item in result if item['orig'] != item['hira']]
     desc = "추출 단어(한자): " + ", ".join(list(set(unique_words)))
     return pron, desc
 
-# 기억력 세팅
+# 🌟 6. [핵심] 딥엘 -> 구글 2단 번역 시스템
+def smart_translate(text, target_lang):
+    deepl_lang = 'en-US' if target_lang == 'en' else target_lang
+    google_lang = 'zh-CN' if target_lang == 'zh' else target_lang
+
+    # [1순위] DeepL 시도 (자연스러운 고품질 번역)
+    if DEEPL_KEY:
+        try:
+            return DeepL(api_key=DEEPL_KEY, source="ko", target=deepl_lang).translate(text)
+        except: 
+            pass # 딥엘 실패(한도 초과 등)시 조용히 구글로 넘어감
+
+    # [2순위] Google (무제한 번역, 최후의 보루)
+    try:
+        return GoogleTranslator(source='ko', target=google_lang).translate(text)
+    except:
+        return "[번역 실패] 잠시 후 다시 시도해주세요."
+
+# 세션 세팅
 if 'scenario_data' not in st.session_state:
     st.session_state.scenario_data = []
 if 'test_sentences' not in st.session_state:
     st.session_state.test_sentences = []
 
 st.title("🚀 무제한 로컬 어학 학습기")
-st.caption("AI 토큰 제한 없이 무제한으로 문장을 분석하고 저장합니다.")
+st.caption("고품질 딥엘(DeepL)로 우선 번역하고, 초과 시 구글 번역기로 자동 우회합니다.")
 
 tab1, tab2, tab3 = st.tabs(["📝 오늘의 학습", "📚 내 보관함", "🎯 작문 테스트"])
 
@@ -75,35 +94,28 @@ tab1, tab2, tab3 = st.tabs(["📝 오늘의 학습", "📚 내 보관함", "🎯
 with tab1:
     input_text = st.text_area("공부할 한국어 문장을 입력하세요:", height=100)
 
-    if st.button("분석 시작 (토큰 소모 없음)", type="primary"):
+    if st.button("분석 시작", type="primary"):
         if input_text:
             raw_sentences = re.split(r'(?<=[.!?])\s+|\n+', input_text)
             sentences = [s.strip() for s in raw_sentences if s.strip()]
             
             results = []
-            with st.spinner("로컬 엔진으로 분석 중..."):
+            with st.spinner("최적의 번역기를 찾아 분석 중입니다..."):
                 for s in sentences:
-                    # 안전망: 문장이 너무 짧거나 특수문자만 있으면 건너뛰기
-                    if len(s) < 2: 
-                        continue
+                    if len(s) < 2: continue
                         
-                    try:
-                        # 번역 (deep-translator 사용)
-                        en = GoogleTranslator(source='ko', target='en').translate(s)
-                        zh = GoogleTranslator(source='ko', target='zh-CN').translate(s)
-                        ja = GoogleTranslator(source='ko', target='ja').translate(s)
-                        
-                        zh_pron, zh_desc = analyze_chinese(zh)
-                        ja_pron, ja_desc = analyze_japanese(ja)
-                        
-                        results.append({
-                            'ko': s, 'en': en, 'zh': zh, 'zh_pron': zh_pron, 'zh_desc': zh_desc,
-                            'ja': ja, 'ja_pron': ja_pron, 'ja_desc': ja_desc
-                        })
-                    except Exception as e:
-                        # 번역 실패 시 앱이 튕기지 않고 경고창만 띄우고 넘어감
-                        st.warning(f"⚠️ '{s}' 문장 번역 중 오류가 발생해 건너뛰었습니다.")
-                        continue
+                    # 2단 번역기 호출!
+                    en = smart_translate(s, 'en')
+                    zh = smart_translate(s, 'zh')
+                    ja = smart_translate(s, 'ja')
+                    
+                    zh_pron, zh_desc = analyze_chinese(zh)
+                    ja_pron, ja_desc = analyze_japanese(ja)
+                    
+                    results.append({
+                        'ko': s, 'en': en, 'zh': zh, 'zh_pron': zh_pron, 'zh_desc': zh_desc,
+                        'ja': ja, 'ja_pron': ja_pron, 'ja_desc': ja_desc
+                    })
             st.session_state.scenario_data = results
 
     if st.session_state.scenario_data:
@@ -137,6 +149,69 @@ with tab1:
             st.write("---")
 
 # ==========================================
-# [탭 2] 내 보관함 / [탭 3] 테스트는 기존 로직과 동일 (생략/유지)
+# [탭 2] 내 보관함 / [탭 3] 작문 테스트는 기존 코드 유지
 # ==========================================
-# (보관함과 테스트 코드는 기존 코드의 데이터베이스 테이블 이름만 sentences_local로 바꿔서 사용하시면 됩니다.)
+with tab2:
+    st.subheader("저장된 분석 노트")
+    conn = sqlite3.connect('my_sentences_local.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM sentences_local ORDER BY id DESC")
+    records = c.fetchall()
+    conn.close()
+
+    if not records:
+        st.info("저장된 문장이 없습니다.")
+    else:
+        for row in records:
+            idx, date_added, ko, en, zh, zh_pron, zh_desc, ja, ja_pron, ja_desc, last_tested = row
+            with st.expander(f"📝 {ko}"):
+                st.write(f"**🇺🇸 EN:** {en}")
+                st.write(f"**🇨🇳 ZH:** {zh} ({zh_pron})")
+                st.caption(f"💡 {zh_desc}")
+                st.write(f"**🇯🇵 JA:** {ja} ({ja_pron})")
+                st.caption(f"💡 {ja_desc}")
+                st.write(f"*(저장일: {date_added})*")
+                
+                if st.button("🗑️ 삭제하기", key=f"del_{idx}"):
+                    conn = sqlite3.connect('my_sentences_local.db')
+                    c = conn.cursor()
+                    c.execute("DELETE FROM sentences_local WHERE id = ?", (idx,))
+                    conn.commit()
+                    conn.close()
+                    st.rerun()
+
+with tab3:
+    st.subheader("🎯 누적 작문 테스트")
+    if st.button("🔄 새로운 테스트 시작하기", type="primary"):
+        conn = sqlite3.connect('my_sentences_local.db')
+        c = conn.cursor()
+        c.execute("SELECT * FROM sentences_local ORDER BY last_tested ASC LIMIT 5")
+        st.session_state.test_sentences = c.fetchall()
+        conn.close()
+
+    if st.session_state.test_sentences:
+        st.divider()
+        with st.form("test_form"):
+            for i, row in enumerate(st.session_state.test_sentences):
+                idx, _, ko, en, zh, zh_pron, zh_desc, ja, ja_pron, ja_desc, _ = row
+                st.markdown(f"**Q{i+1}. {ko}**")
+                st.text_input("영어 작문:", key=f"ans_en_{i}")
+                st.text_input("중국어/일본어 작문:", key=f"ans_other_{i}")
+                with st.expander("👉 정답 확인하기"):
+                    st.success(f"**EN:** {en}")
+                    st.info(f"**ZH:** {zh} ({zh_pron})\n\n*(팁: {zh_desc})*")
+                    st.warning(f"**JA:** {ja} ({ja_pron})\n\n*(팁: {ja_desc})*")
+                st.write("---")
+            
+            submit_test = st.form_submit_button("✅ 테스트 완료 및 기록 업데이트")
+            if submit_test:
+                conn = sqlite3.connect('my_sentences_local.db')
+                c = conn.cursor()
+                now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                for row in st.session_state.test_sentences:
+                    idx = row[0]
+                    c.execute("UPDATE sentences_local SET last_tested = ? WHERE id = ?", (now, idx))
+                conn.commit()
+                conn.close()
+                st.success("기록 완료! 새 테스트를 눌러주세요.")
+                st.session_state.test_sentences = []
