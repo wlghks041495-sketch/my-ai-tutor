@@ -16,7 +16,7 @@ st.set_page_config(page_title="무제한 로컬 어학기", layout="wide")
 # 2. 딥엘 키 가져오기
 DEEPL_KEY = st.secrets.get("DEEPL_API_KEY", "")
 
-# 3. 데이터베이스 세팅
+# 3. 데이터베이스 세팅 (기존과 동일)
 def init_db():
     conn = sqlite3.connect('my_sentences_local.db')
     c = conn.cursor()
@@ -59,23 +59,29 @@ def analyze_japanese(text):
     desc = "추출 단어(한자): " + ", ".join(list(set(unique_words)))
     return pron, desc
 
-# 🌟 6. [핵심] 딥엘 -> 구글 2단 번역 시스템 (최종 완성!)
+# 🌟 6. [핵심] 번역기 출처와 에러 원인을 반환하는 스마트 번역기
 def smart_translate(text, target_lang):
+    deepl_lang = 'en-US' if target_lang == 'en' else target_lang
     google_lang = 'zh-CN' if target_lang == 'zh' else target_lang
+    
+    error_msg = ""
 
-    # [1순위] DeepL 시도 (최고급 번역)
+    # [1순위] DeepL 시도
     if DEEPL_KEY:
         try:
-            # 💡 source="ko" 대신 "auto"로 변경하여 도구의 자체 검열 우회!
-            return DeeplTranslator(api_key=DEEPL_KEY, source="auto", target=target_lang, use_free_api=True).translate(text)
-        except: 
-            pass # 딥엘 실패(한도 초과 등)시 화면에 에러 안 띄우고 조용히 구글로 넘어감
+            # 번역 성공 시 결과와 함께 'DeepL' 태그 반환
+            result = DeeplTranslator(api_key=DEEPL_KEY, source="auto", target=deepl_lang, use_free_api=True).translate(text)
+            return result, "DeepL", "" 
+        except Exception as e: 
+            error_msg = str(e) # 딥엘 실패 원인을 저장해둠
 
-    # [2순위] Google (무제한 번역, 최후의 보루)
+    # [2순위] Google (DeepL이 실패했거나 키가 없을 때)
     try:
-        return GoogleTranslator(source='ko', target=google_lang).translate(text)
+        result = GoogleTranslator(source='ko', target=google_lang).translate(text)
+        return result, "Google", error_msg # 구글 번역 결과와 함께 딥엘의 에러 원인도 같이 보냄
     except:
-        return "[번역 실패] 잠시 후 다시 시도해주세요."
+        return "[번역 실패] 잠시 후 다시 시도해주세요.", "Error", ""
+
 # 세션 세팅
 if 'scenario_data' not in st.session_state:
     st.session_state.scenario_data = []
@@ -83,7 +89,7 @@ if 'test_sentences' not in st.session_state:
     st.session_state.test_sentences = []
 
 st.title("🚀 무제한 로컬 어학 학습기")
-st.caption("고품질 딥엘(DeepL)로 우선 번역하고, 초과 시 구글 번역기로 자동 우회합니다.")
+st.caption("결과 창에서 DeepL / Google 출처를 직접 확인하세요!")
 
 tab1, tab2, tab3 = st.tabs(["📝 오늘의 학습", "📚 내 보관함", "🎯 작문 테스트"])
 
@@ -103,17 +109,19 @@ with tab1:
                 for s in sentences:
                     if len(s) < 2: continue
                         
-                    # 2단 번역기 호출!
-                    en = smart_translate(s, 'en')
-                    zh = smart_translate(s, 'zh')
-                    ja = smart_translate(s, 'ja')
+                    # 번역 결과, 사용된 엔진, 에러 원인(있을 경우)을 모두 받아옴
+                    en, en_engine, en_err = smart_translate(s, 'en')
+                    zh, zh_engine, zh_err = smart_translate(s, 'zh')
+                    ja, ja_engine, ja_err = smart_translate(s, 'ja')
                     
                     zh_pron, zh_desc = analyze_chinese(zh)
                     ja_pron, ja_desc = analyze_japanese(ja)
                     
                     results.append({
-                        'ko': s, 'en': en, 'zh': zh, 'zh_pron': zh_pron, 'zh_desc': zh_desc,
-                        'ja': ja, 'ja_pron': ja_pron, 'ja_desc': ja_desc
+                        'ko': s, 
+                        'en': en, 'en_engine': en_engine, 'en_err': en_err,
+                        'zh': zh, 'zh_engine': zh_engine, 'zh_err': zh_err, 'zh_pron': zh_pron, 'zh_desc': zh_desc,
+                        'ja': ja, 'ja_engine': ja_engine, 'ja_err': ja_err, 'ja_pron': ja_pron, 'ja_desc': ja_desc
                     })
             st.session_state.scenario_data = results
 
@@ -122,17 +130,21 @@ with tab1:
             st.markdown(f"### {data['ko']}")
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.success("🇺🇸 영어")
+                # 🌟 화면에 [DeepL] 또는 [Google] 태그 표시
+                st.success(f"🇺🇸 영어 [{data['en_engine']}]")
                 st.info(data['en'])
+                if data['en_err']: st.error(f"DeepL 실패 원인: {data['en_err']}")
                 if st.button("🔊", key=f"en_{i}"): speak(data['en'], 'en')
             with col2:
-                st.success("🇨🇳 중국어")
+                st.success(f"🇨🇳 중국어 [{data['zh_engine']}]")
                 st.info(f"{data['zh']}\n\n({data['zh_pron']})")
+                if data['zh_err']: st.error(f"DeepL 실패 원인: {data['zh_err']}")
                 st.caption(data['zh_desc'])
                 if st.button("🔊", key=f"zh_{i}"): speak(data['zh'], 'zh-CN')
             with col3:
-                st.success("🇯🇵 일본어")
+                st.success(f"🇯🇵 일본어 [{data['ja_engine']}]")
                 st.info(f"{data['ja']}\n\n({data['ja_pron']})")
+                if data['ja_err']: st.error(f"DeepL 실패 원인: {data['ja_err']}")
                 st.caption(data['ja_desc'])
                 if st.button("🔊", key=f"ja_{i}"): speak(data['ja'], 'ja')
             
@@ -148,7 +160,7 @@ with tab1:
             st.write("---")
 
 # ==========================================
-# [탭 2] 내 보관함
+# [탭 2] 내 보관함 / [탭 3] 작문 테스트는 기존과 동일하게 유지
 # ==========================================
 with tab2:
     st.subheader("저장된 분석 노트")
@@ -179,9 +191,6 @@ with tab2:
                     conn.close()
                     st.rerun()
 
-# ==========================================
-# [탭 3] 작문 테스트
-# ==========================================
 with tab3:
     st.subheader("🎯 누적 작문 테스트")
     if st.button("🔄 새로운 테스트 시작하기", type="primary"):
