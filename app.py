@@ -1,5 +1,5 @@
 import streamlit as st
-from deep_translator import GoogleTranslator, DeepL
+from deep_translator import GoogleTranslator, DeeplTranslator
 from gtts import gTTS
 import os
 import base64
@@ -59,15 +59,15 @@ def analyze_japanese(text):
     desc = "추출 단어(한자): " + ", ".join(list(set(unique_words)))
     return pron, desc
 
-# 🌟 6. [핵심] 딥엘 -> 구글 2단 번역 시스템
+# 🌟 6. [핵심] 딥엘 -> 구글 2단 번역 시스템 (수정 완료!)
 def smart_translate(text, target_lang):
     deepl_lang = 'en-US' if target_lang == 'en' else target_lang
     google_lang = 'zh-CN' if target_lang == 'zh' else target_lang
 
-    # [1순위] DeepL 시도 (자연스러운 고품질 번역)
+    # [1순위] DeepL 시도 (무료 API 옵션 켜기!)
     if DEEPL_KEY:
         try:
-            return DeepL(api_key=DEEPL_KEY, source="ko", target=deepl_lang).translate(text)
+            return DeeplTranslator(api_key=DEEPL_KEY, source="ko", target=deepl_lang, use_free_api=True).translate(text)
         except: 
             pass # 딥엘 실패(한도 초과 등)시 조용히 구글로 넘어감
 
@@ -149,7 +149,7 @@ with tab1:
             st.write("---")
 
 # ==========================================
-# [탭 2] 내 보관함 / [탭 3] 작문 테스트는 기존 코드 유지
+# [탭 2] 내 보관함
 # ==========================================
 with tab2:
     st.subheader("저장된 분석 노트")
@@ -180,6 +180,9 @@ with tab2:
                     conn.close()
                     st.rerun()
 
+# ==========================================
+# [탭 3] 작문 테스트
+# ==========================================
 with tab3:
     st.subheader("🎯 누적 작문 테스트")
     if st.button("🔄 새로운 테스트 시작하기", type="primary"):
